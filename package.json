@@ -1,0 +1,29 @@
+{
+  "name": "@nx-js/params-middleware",
+  "version": "1.0.0",
+  "description": "An NX middleware, responsible for query parameter routing.",
+  "main": "params.js",
+  "author": {
+    "name": "Miklos Bertalan",
+    "email": "miklos.bertalan@risingstack.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:nx-js/params-middleware.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nx-js/params-middleware/issues"
+  },
+  "homepage": "http://nx-framework.com",
+  "license": "MIT",
+  "keywords": [
+    "nx",
+    "middleware",
+    "param",
+    "query",
+    "routing"
+  ],
+  "peerDependencies": {
+    "@nx-js/observe-middleware": "^1.0.0"
+  }
+}
