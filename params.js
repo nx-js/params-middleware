@@ -43,7 +43,7 @@ function syncStateWithParams (node) {
   const config = node[secret.config]
 
   for (let paramName in config) {
-    const param = params[paramName] || config[paramName].default
+    const param = decodeURI(params[paramName]) || config[paramName].default
     if (config[paramName].required && param === undefined) {
       throw new Error(`${paramName} is a required parameter`)
     }
