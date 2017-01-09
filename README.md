@@ -8,7 +8,7 @@ The `params` middleware factory is responsible for automatically synchronizing s
 - processes: element nodes
 - throws on: text nodes
 - use as: component middleware
-- [docs](http://nx-framework/docs/middlewares/params)
+- [docs](http://nx-framework.com/docs/middlewares/params)
 
 ## Installation
 
