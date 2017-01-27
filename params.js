@@ -1,8 +1,9 @@
 'use strict'
 
-const secret = {
-  config: Symbol('params sync config'),
-  initSynced: Symbol('node initial synced')
+const util = require('@nx-js/router-util')
+
+const symbols = {
+  config: Symbol('params sync config')
 }
 const watchedNodes = new Set()
 
@@ -19,7 +20,7 @@ function onPopState (ev) {
 
 module.exports = function paramsFactory (config) {
   function params (node, state, next) {
-    node[secret.config] = config
+    node[symbols.config] = config || {}
     watchedNodes.add(node)
     node.$cleanup(unwatch)
 
@@ -40,7 +41,7 @@ function unwatch () {
 function syncStateWithParams (node) {
   const params = history.state.params
   const state = node.$state
-  const config = node[secret.config]
+  const config = node[symbols.config]
 
   for (let paramName in config) {
     const param = params[paramName] || config[paramName].default
@@ -67,7 +68,7 @@ function syncStateWithParams (node) {
 function syncParamsWithState (node, shouldUpdateHistory) {
   const params = history.state.params
   const state = node.$state
-  const config = node[secret.config]
+  const config = node[symbols.config]
   let newParams = {}
   let paramsChanged = false
   let historyChanged = false
@@ -92,24 +93,10 @@ function syncParamsWithState (node, shouldUpdateHistory) {
 function updateHistory (params, historyChanged) {
   params = Object.assign({}, history.state.params, params)
 
-  const url = location.pathname + paramsToQuery(params)
+  const url = location.pathname + util.toQuery(params)
   if (historyChanged) {
     history.pushState({route: history.state.route, params}, '', url)
   } else {
     history.replaceState({route: history.state.route, params}, '', url)
   }
-}
-
-function paramsToQuery (params) {
-  let query = ''
-  for (let paramName in params) {
-    const param = params[paramName]
-    if (param !== undefined) {
-      query += `${paramName}=${param}&`
-    }
-  }
-  if (query !== '') {
-    query = '?' + query.slice(0, -1)
-  }
-  return query
 }
