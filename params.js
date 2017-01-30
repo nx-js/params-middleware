@@ -73,8 +73,8 @@ function syncStateWithParams (state, config) {
 
 function syncParamsWithState (state, config) {
   const params = history.state.params
-  let newParams = {}
-  let paramsChanged = false
+  const historyParams = {}
+  const urlParams = {}
   let historyChanged = false
 
   for (let paramName in config) {
@@ -82,8 +82,7 @@ function syncParamsWithState (state, config) {
       if (config[paramName].readOnly) {
         throw new Error(`${paramName} is readOnly`)
       }
-      newParams[paramName] = state[paramName]
-      paramsChanged = true
+      historyParams[paramName] = state[paramName]
       if (config[paramName].history) {
         historyChanged = true
       }
@@ -91,16 +90,19 @@ function syncParamsWithState (state, config) {
     if (config[paramName].durable) {
       localStorage.setItem(`${config.scope}-${paramName}`, state[paramName])
     }
+    if (config[paramName].url) {
+      urlParams[paramName] = state[paramName]
+    }
   }
-  if (paramsChanged) {
-    updateHistory(newParams, historyChanged)
-  }
+  updateHistory(historyParams, urlParams, historyChanged)
 }
 
-function updateHistory (params, historyChanged) {
-  params = Object.assign({}, history.state.params, params)
-  const url = location.pathname + util.toQuery(params)
-  util.updateState({route: history.state.route, params}, '', url, historyChanged)
+function updateHistory (historyParams, urlParams, historyChanged) {
+  historyParams = Object.assign({}, history.state.params, historyParams)
+  urlParams = Object.assign(util.toParams(location.search), urlParams)
+  const url = location.pathname + util.toQuery(urlParams)
+  const state = {route: history.state.route, params: historyParams}
+  util.updateState(state, '', url, historyChanged)
   dispatchParamsEvent()
 }
 
