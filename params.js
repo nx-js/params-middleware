@@ -26,6 +26,7 @@ module.exports = function paramsFactory (config) {
 
   function params (node, state) {
     node[symbols.config] = config
+    config.scope = config.scope || node.getAttribute('is') || node.tagName
     watchedParams.set(config, state)
     node.$cleanup(unwatch, config)
 
@@ -45,7 +46,11 @@ function syncStateWithParams (state, config) {
   const params = history.state.params
 
   for (let paramName in config) {
-    const param = params[paramName] || config[paramName].default
+    let param = params[paramName]
+    if (config[paramName].durable && param === undefined) {
+      param = localStorage.getItem(`${config.scope}-${paramName}`)
+    }
+    param = param || config[paramName].default
     if (config[paramName].required && param === undefined) {
       throw new Error(`${paramName} is a required parameter`)
     }
@@ -82,6 +87,9 @@ function syncParamsWithState (state, config) {
       if (config[paramName].history) {
         historyChanged = true
       }
+    }
+    if (config[paramName].durable) {
+      localStorage.setItem(`${config.scope}-${paramName}`, state[paramName])
     }
   }
   if (paramsChanged) {
