@@ -5,43 +5,44 @@ const util = require('@nx-js/router-util')
 const symbols = {
   config: Symbol('params sync config')
 }
-const watchedNodes = new Set()
+const watchedParams = new Map()
+const paramsEventConfig = {bubbles: true, cancelable: true}
 
-window.addEventListener('popstate', onPopState)
+window.addEventListener('popstate', onPopState, true)
+window.addEventListener('params', onParams, true)
 
 function onPopState (ev) {
-  for (let node of watchedNodes) {
-    if (document.body.contains(node)) { // TODO -> refine this a bit! I need a better check
-      syncStateWithParams(node)
-      syncParamsWithState(node, false)
-    }
-  }
+  // ugly timing hack, needed to run params after routing and cleanup is finished
+  Promise.resolve().then().then(dispatchParamsEvent)
 }
 
-module.exports = function paramsFactory (config) {
-  function params (node, state, next) {
-    node[symbols.config] = config || {}
-    watchedNodes.add(node)
-    node.$cleanup(unwatch)
+function onParams () {
+  watchedParams.forEach(syncStateWithParams)
+}
 
-    syncStateWithParams(node)
-    next()
-    syncParamsWithState(node, false)
-    node.$observe(syncParamsWithState, node, true)
+
+module.exports = function paramsFactory (config) {
+  config = config || {}
+
+  function params (node, state) {
+    node[symbols.config] = config
+    watchedParams.set(config, state)
+    node.$cleanup(unwatch, config)
+
+    syncStateWithParams(state, config)
+    node.$observe(syncParamsWithState, state, config)
   }
   params.$name = 'params'
   params.$require = ['observe']
   return params
 }
 
-function unwatch () {
-  watchedNodes.delete(this)
+function unwatch (config) {
+  watchedParams.delete(config)
 }
 
-function syncStateWithParams (node) {
+function syncStateWithParams (state, config) {
   const params = history.state.params
-  const state = node.$state
-  const config = node[symbols.config]
 
   for (let paramName in config) {
     const param = params[paramName] || config[paramName].default
@@ -50,25 +51,21 @@ function syncStateWithParams (node) {
     }
     const type = config[paramName].type
     if (state[paramName] !== param) {
-      if (param === undefined) {
-        state[paramName] = undefined
-      } else if (type === 'number') {
+      if (type === 'number') {
         state[paramName] = Number(param)
       } else if (type === 'boolean') {
         state[paramName] = Boolean(param)
       } else if (type === 'date') {
         state[paramName] = new Date(param)
       } else {
-        state[paramName] = decodeURI(param)
+        state[paramName] = param
       }
     }
   }
 }
 
-function syncParamsWithState (node, shouldUpdateHistory) {
+function syncParamsWithState (state, config) {
   const params = history.state.params
-  const state = node.$state
-  const config = node[symbols.config]
   let newParams = {}
   let paramsChanged = false
   let historyChanged = false
@@ -80,7 +77,7 @@ function syncParamsWithState (node, shouldUpdateHistory) {
       }
       newParams[paramName] = state[paramName]
       paramsChanged = true
-      if (config[paramName].history && shouldUpdateHistory) {
+      if (config[paramName].history) {
         historyChanged = true
       }
     }
@@ -92,11 +89,11 @@ function syncParamsWithState (node, shouldUpdateHistory) {
 
 function updateHistory (params, historyChanged) {
   params = Object.assign({}, history.state.params, params)
-
   const url = location.pathname + util.toQuery(params)
-  if (historyChanged) {
-    history.pushState({route: history.state.route, params}, '', url)
-  } else {
-    history.replaceState({route: history.state.route, params}, '', url)
-  }
+  util.updateState({route: history.state.route, params}, '', url, historyChanged)
+  dispatchParamsEvent()
+}
+
+function dispatchParamsEvent () {
+  document.dispatchEvent(new CustomEvent('params', paramsEventConfig))
 }
