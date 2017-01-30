@@ -51,7 +51,9 @@ function syncStateWithParams (state, config) {
     }
     const type = config[paramName].type
     if (state[paramName] !== param) {
-      if (type === 'number') {
+      if (param === undefined) {
+        state[paramName] = undefined
+      } else if (type === 'number') {
         state[paramName] = Number(param)
       } else if (type === 'boolean') {
         state[paramName] = Boolean(param)
