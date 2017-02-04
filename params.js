@@ -7,30 +7,36 @@ const symbols = {
 }
 const watchedParams = new Map()
 const paramsEventConfig = {bubbles: true, cancelable: true}
+let urlParams = {}
 
-window.addEventListener('popstate', onPopState, true)
+window.addEventListener('popstate', onPopState)
 window.addEventListener('params', onParams, true)
 
 function onPopState (ev) {
-  // ugly timing hack, needed to run params after routing and cleanup is finished
-  Promise.resolve().then().then(dispatchParamsEvent)
+  document.dispatchEvent(new CustomEvent('params', paramsEventConfig))
 }
 
 function onParams () {
+  urlParams = {}
   watchedParams.forEach(syncStateWithParams)
+  syncUrlWithParams()
 }
 
 
-module.exports = function paramsFactory (config) {
-  config = config || {}
+module.exports = function paramsFactory (paramsConfig) {
+  paramsConfig = paramsConfig || {}
 
   function params (node, state) {
-    node[symbols.config] = config
-    config.scope = config.scope || node.getAttribute('is') || node.tagName
+    const config = node[symbols.config] = {
+      scope: node.getAttribute('is') || node.tagName,
+      params: paramsConfig,
+      node
+    }
     watchedParams.set(config, state)
     node.$cleanup(unwatch, config)
 
     syncStateWithParams(state, config)
+    syncUrlWithParams()
     node.$observe(syncParamsWithState, state, config)
   }
   params.$name = 'params'
@@ -43,69 +49,75 @@ function unwatch (config) {
 }
 
 function syncStateWithParams (state, config) {
+  if (!document.documentElement.contains(config.node)) {
+    return
+  }
   const params = history.state.params
+  const paramsConfig = config.params
 
-  for (let paramName in config) {
+  for (let paramName in paramsConfig) {
     let param = params[paramName]
-    if (config[paramName].durable && param === undefined) {
+    const paramConfig = paramsConfig[paramName]
+
+    if (param === undefined && paramConfig.durable) {
       param = localStorage.getItem(`${config.scope}-${paramName}`)
     }
-    param = param || config[paramName].default
-    if (config[paramName].required && param === undefined) {
-      throw new Error(`${paramName} is a required parameter`)
+    param = param || paramConfig.default
+    if (param === undefined && paramConfig.required) {
+      throw new Error(`${paramName} is a required parameter in ${config.scope}`)
     }
-    const type = config[paramName].type
+    const type = paramConfig.type
     if (state[paramName] !== param) {
-      if (param === undefined) {
-        state[paramName] = undefined
-      } else if (type === 'number') {
-        state[paramName] = Number(param)
+      if (type === 'number') {
+        param = Number(param)
       } else if (type === 'boolean') {
-        state[paramName] = Boolean(param)
+        param = Boolean(param)
       } else if (type === 'date') {
-        state[paramName] = new Date(param)
-      } else {
-        state[paramName] = param
+        param = new Date(param)
       }
+      state[paramName] = param
+    }
+    params[paramName] = param
+    if (paramConfig.url) {
+      urlParams[paramName] = param
     }
   }
+  // ad an unqueue syncParams observer here
 }
 
 function syncParamsWithState (state, config) {
   const params = history.state.params
-  const historyParams = {}
-  const urlParams = {}
+  const paramsConfig = config.params
   let historyChanged = false
+  let paramsChanged = false
 
-  for (let paramName in config) {
-    if (params[paramName] !== state[paramName]) {
-      if (config[paramName].readOnly) {
-        throw new Error(`${paramName} is readOnly`)
+  for (let paramName in paramsConfig) {
+    const paramConfig = paramsConfig[paramName]
+    const param = state[paramName]
+
+    if (params[paramName] !== param) {
+      if (paramConfig.readOnly) {
+        throw new Error(`${paramName} is readOnly, but it was set from ${params[paramName]} to ${param} in ${config.scope}`)
       }
-      historyParams[paramName] = state[paramName]
-      if (config[paramName].history) {
-        historyChanged = true
-      }
+      params[paramName] = param
+      paramsChanged = true
+      historyChanged = historyChanged || paramConfig.history
     }
-    if (config[paramName].durable) {
-      localStorage.setItem(`${config.scope}-${paramName}`, state[paramName])
-    }
-    if (config[paramName].url) {
-      urlParams[paramName] = state[paramName]
+    if (paramConfig.durable) {
+      localStorage.setItem(`${config.scope}-${paramName}`, param)
     }
   }
-  updateHistory(historyParams, urlParams, historyChanged)
+  if (paramsChanged) {
+    updateHistory(historyChanged)
+  }
 }
 
-function updateHistory (historyParams, urlParams, historyChanged) {
-  historyParams = Object.assign({}, history.state.params, historyParams)
-  urlParams = Object.assign(util.toParams(location.search), urlParams)
+function syncUrlWithParams () {
   const url = location.pathname + util.toQuery(urlParams)
-  const state = {route: history.state.route, params: historyParams}
-  util.updateState(state, '', url, historyChanged)
-  dispatchParamsEvent()
+  history.replaceState(history.state, '', url)
 }
 
-function dispatchParamsEvent () {
+function updateHistory (historyChanged) {
+  util.updateState(history.state, '', location.pathname, historyChanged)
   document.dispatchEvent(new CustomEvent('params', paramsEventConfig))
 }
