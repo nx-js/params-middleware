@@ -26,7 +26,7 @@ function onParams () {
 module.exports = function paramsFactory (paramsConfig) {
   paramsConfig = paramsConfig || {}
 
-  function params (node, state) {
+  function params (node, state, next) {
     const config = node[symbols.config] = {
       scope: node.getAttribute('is') || node.tagName,
       params: paramsConfig,
@@ -37,7 +37,8 @@ module.exports = function paramsFactory (paramsConfig) {
 
     syncStateWithParams(state, config)
     syncUrlWithParams()
-    node.$observe(syncParamsWithState, state, config)
+    next()
+    config.signal = node.$observe(syncParamsWithState, state, config)
   }
   params.$name = 'params'
   params.$require = ['observe']
@@ -54,6 +55,7 @@ function syncStateWithParams (state, config) {
   }
   const params = history.state.params
   const paramsConfig = config.params
+  let paramsChanged = false
 
   for (let paramName in paramsConfig) {
     let param = params[paramName]
@@ -77,12 +79,20 @@ function syncStateWithParams (state, config) {
       }
       state[paramName] = param
     }
-    params[paramName] = param
+    if (params[paramName] !== param) {
+      params[paramName] = param
+      paramsChanged = true
+    }
     if (paramConfig.url) {
       urlParams[paramName] = param
     }
   }
-  // ad an unqueue syncParams observer here
+  if (paramsChanged) {
+    updateHistory(false)
+  }
+  if (config.signal) {
+    config.signal.unqueue()
+  }
 }
 
 function syncParamsWithState (state, config) {
