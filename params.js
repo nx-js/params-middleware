@@ -28,7 +28,7 @@ module.exports = function paramsFactory (paramsConfig) {
 
   function params (node, state, next) {
     const config = node[symbols.config] = {
-      scope: node.getAttribute('is') || node.tagName,
+      tagName: node.getAttribute('is') || node.tagName,
       params: paramsConfig,
       node
     }
@@ -62,11 +62,11 @@ function syncStateWithParams (state, config) {
     const paramConfig = paramsConfig[paramName]
 
     if (param === undefined && paramConfig.durable) {
-      param = localStorage.getItem(`${config.scope}-${paramName}`)
+      param = localStorage.getItem(paramName)
     }
     param = param || paramConfig.default
     if (param === undefined && paramConfig.required) {
-      throw new Error(`${paramName} is a required parameter in ${config.scope}`)
+      throw new Error(`${paramName} is a required parameter in ${config.tagName}`)
     }
     const type = paramConfig.type
     if (state[paramName] !== param) {
@@ -107,14 +107,14 @@ function syncParamsWithState (state, config) {
 
     if (params[paramName] !== param) {
       if (paramConfig.readOnly) {
-        throw new Error(`${paramName} is readOnly, but it was set from ${params[paramName]} to ${param} in ${config.scope}`)
+        throw new Error(`${paramName} is readOnly, but it was set from ${params[paramName]} to ${param} in ${config.tagName}`)
       }
       params[paramName] = param
       paramsChanged = true
       historyChanged = historyChanged || paramConfig.history
     }
     if (paramConfig.durable) {
-      localStorage.setItem(`${config.scope}-${paramName}`, param)
+      localStorage.setItem(paramName, param)
     }
   }
   if (paramsChanged) {
