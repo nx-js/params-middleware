@@ -5,9 +5,8 @@ The `params` middleware factory is responsible for automatically synchronizing s
 - name: params
 - direct middleware dependencies: [observe](https://github.com/nx-js/observe-middleware)
 - all middleware dependencies: [observe](https://github.com/nx-js/observe-middleware)
-- processes: element nodes
-- throws on: text nodes
-- use as: component middleware
+- type: component middleware
+- ignores: text nodes
 - [docs](http://nx-framework.com/docs/middlewares/params)
 
 ## Installation

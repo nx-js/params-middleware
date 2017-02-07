@@ -26,22 +26,23 @@ function onParams () {
 module.exports = function paramsFactory (paramsConfig) {
   paramsConfig = paramsConfig || {}
 
-  function params (node, state, next) {
-    const config = node[symbols.config] = {
-      tagName: node.getAttribute('is') || node.tagName,
+  function params (elem, state, next) {
+    const config = elem[symbols.config] = {
+      tagName: elem.getAttribute('is') || elem.tagName,
       params: paramsConfig,
-      node
+      elem
     }
     watchedParams.set(config, state)
-    node.$cleanup(unwatch, config)
+    elem.$cleanup(unwatch, config)
 
     syncStateWithParams(state, config)
     syncUrlWithParams()
     next()
-    config.signal = node.$observe(syncParamsWithState, state, config)
+    config.signal = elem.$observe(syncParamsWithState, state, config)
   }
   params.$name = 'params'
   params.$require = ['observe']
+  params.$type = 'component'
   return params
 }
 
@@ -50,7 +51,7 @@ function unwatch (config) {
 }
 
 function syncStateWithParams (state, config) {
-  if (!document.documentElement.contains(config.node)) {
+  if (!document.documentElement.contains(config.elem)) {
     return
   }
   const params = history.state.params
