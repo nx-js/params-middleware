@@ -6,22 +6,9 @@ const symbols = {
   config: Symbol('params sync config')
 }
 const watchedParams = new Map()
-const paramsEventConfig = {bubbles: true, cancelable: true}
 let urlParams = {}
 
-window.addEventListener('popstate', onPopState)
-window.addEventListener('params', onParams, true)
-
-function onPopState (ev) {
-  document.dispatchEvent(new CustomEvent('params', paramsEventConfig))
-}
-
-function onParams () {
-  urlParams = {}
-  watchedParams.forEach(syncStateWithParams)
-  syncUrlWithParams()
-}
-
+window.addEventListener('popstate', () => syncStatesWithParams(false))
 
 module.exports = function paramsFactory (paramsConfig) {
   paramsConfig = paramsConfig || {}
@@ -50,13 +37,33 @@ function unwatch (config) {
   watchedParams.delete(config)
 }
 
+function syncStatesWithParams (historyChanged) {
+  const paramsEvent = new CustomEvent('params', {
+    bubbles: true,
+    cancelable: true,
+    detail: {params: history.state.params, history: historyChanged}
+  })
+  document.dispatchEvent(paramsEvent)
+
+  if (!paramsEvent.defaultPrevented) {
+    urlParams = {}
+    watchedParams.forEach(syncStateWithParams)
+    const url = location.pathname + util.toQuery(urlParams)
+    util.updateState(history.state, '', url, historyChanged)
+  }
+}
+
+function syncUrlWithParams () {
+  const url = location.pathname + util.toQuery(urlParams)
+  history.replaceState(history.state, '', url)
+}
+
 function syncStateWithParams (state, config) {
   if (!document.documentElement.contains(config.elem)) {
     return
   }
   const params = history.state.params
   const paramsConfig = config.params
-  let paramsChanged = false
 
   for (let paramName in paramsConfig) {
     let param = params[paramName]
@@ -65,31 +72,17 @@ function syncStateWithParams (state, config) {
     if (param === undefined && paramConfig.durable) {
       param = localStorage.getItem(paramName)
     }
-    param = param || paramConfig.default
     if (param === undefined && paramConfig.required) {
       throw new Error(`${paramName} is a required parameter in ${config.tagName}`)
     }
-    const type = paramConfig.type
-    if (state[paramName] !== param) {
-      if (type === 'number') {
-        param = Number(param)
-      } else if (type === 'boolean') {
-        param = Boolean(param)
-      } else if (type === 'date') {
-        param = new Date(param)
-      }
-      state[paramName] = param
+    if (param === undefined) {
+      param = paramConfig.default
     }
-    if (params[paramName] !== param) {
-      params[paramName] = param
-      paramsChanged = true
-    }
+    param = convertParam(param, paramConfig.type)
+    state[paramName] = param
     if (paramConfig.url) {
       urlParams[paramName] = param
     }
-  }
-  if (paramsChanged) {
-    updateHistory(false)
   }
   if (config.signal) {
     config.signal.unqueue()
@@ -104,10 +97,15 @@ function syncParamsWithState (state, config) {
 
   for (let paramName in paramsConfig) {
     const paramConfig = paramsConfig[paramName]
-    const param = state[paramName]
+    let param = state[paramName]
+    let isDefault = false
+    if (param === undefined) {
+      param = paramConfig.default
+      isDefault = true
+    }
 
     if (params[paramName] !== param) {
-      if (paramConfig.readOnly) {
+      if (paramConfig.readOnly && isDefault) {
         throw new Error(`${paramName} is readOnly, but it was set from ${params[paramName]} to ${param} in ${config.tagName}`)
       }
       params[paramName] = param
@@ -119,16 +117,22 @@ function syncParamsWithState (state, config) {
     }
   }
   if (paramsChanged) {
-    updateHistory(historyChanged)
+    syncStatesWithParams(historyChanged)
   }
 }
 
-function syncUrlWithParams () {
-  const url = location.pathname + util.toQuery(urlParams)
-  history.replaceState(history.state, '', url)
-}
-
-function updateHistory (historyChanged) {
-  util.updateState(history.state, '', location.pathname, historyChanged)
-  document.dispatchEvent(new CustomEvent('params', paramsEventConfig))
+function convertParam (param, type) {
+  if (param === undefined) {
+    return param
+  }
+  if (type === 'number') {
+    return Number(param)
+  }
+  if (type === 'boolean') {
+    return Boolean(param)
+  }
+  if (type === 'date') {
+    return new Date(param)
+  }
+  return param
 }
