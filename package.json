@@ -1,6 +1,6 @@
 {
   "name": "@nx-js/params-middleware",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "An NX middleware, responsible for query parameter routing.",
   "main": "params.js",
   "author": {
@@ -27,6 +27,6 @@
     "@nx-js/router-util": "^1.0.0"
   },
   "peerDependencies": {
-    "@nx-js/observe-middleware": "^1.0.0"
+    "@nx-js/observe-middleware": "^2.0.0"
   }
 }
